@@ -29,7 +29,7 @@ def llm_polish(text, context, tone="Professional"):
     }
 
     try:
-        response = requests.post(LMSTUDIO_URL, json=payload, timeout=20)
+        response = requests.post(LMSTUDIO_URL, json=payload, timeout=120)
         data = response.json()
         return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
