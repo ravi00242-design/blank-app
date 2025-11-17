@@ -1,214 +1,160 @@
-# streamlit_app.py
+# streamlit_app.py — Updated to use LM Studio Local LLM (via HTTP endpoint)
+# This version uses LM Studio running locally at http://localhost:1234/v1/chat/completions
+# Replace the endpoint with your actual LM Studio API URL if different.
+
 import streamlit as st
+import requests
 from datetime import datetime
 import random
 import json
 
 # ---------------------------------------------------------
-# FULL STREAMLIT DEMO — AI Follow-Up & Lead Resurrection Agent
-# Features:
-# ✔ WhatsApp-style chat UI
-# ✔ Multi-step follow-up generator
-# ✔ LLM polish stub (easily replaceable with API call)
-# ✔ Lead history + memory simulation
-# ✔ Dashboard-style metrics
-# ✔ Branding + UI polish
+# CONFIG — LM Studio endpoint
 # ---------------------------------------------------------
+LMSTUDIO_URL = http://192.168.1.10:1234  # Default LM Studio server
+MODEL_NAME = "gemma-2-2b-it"  # LM Studio automatically assigns internal model names, optional
 
-st.set_page_config(page_title="AI Follow-Up Agent Demo", page_icon="🤖", layout="wide")
-st.markdown(
-    """
-    <style>
-      .sidebar .sidebar-content {background: #f8fafc;}
-      .agent-bubble {background:#dcf8c6; padding:10px; border-radius:12px; margin:6px 0;}
-      .lead-bubble {background:#e9eef6; padding:10px; border-radius:12px; margin:6px 0;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# LLM Polish using LM Studio --------------------------------------------------
+def llm_polish(text, context, tone="Professional"):
+    prompt = f"Tone: {tone}\nContext: {context}\nMessage: {text}\nPolish and keep concise."
 
-# -----------------------------
-# Header / Branding
-# -----------------------------
-st.markdown(
-    """
-    <div style="text-align:center">
-      <h1 style="color:#0ea5e9; margin-bottom:4px;">🤖 AI Follow-Up & Lead Resurrection — Demo</h1>
-      <p style="color:#374151; margin-top:0;">Automated follow-ups, multi-step sequences, CRM simulation & client-ready flows.</p>
-    </div>
-    <hr>
-    """,
-    unsafe_allow_html=True,
-)
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 200
+    }
 
-# Sidebar
-st.sidebar.markdown(
-    """
-    ## 🚀 AI Business OS — Demo
-    Use this demo to simulate how follow-ups are generated and scheduled.
-    - Generate follow-ups
-    - View CRM simulation
-    - Show stepwise follow-up plan
-    - Swap industry templates
-    """,
-    unsafe_allow_html=True,
-)
-st.sidebar.markdown("### ⚙️ Demo Controls")
-demo_tone = st.sidebar.selectbox("Polish Tone (LLM stub)", ["Professional", "Casual", "Urgent", "Persuasive"])
-show_sequence = st.sidebar.checkbox("Show follow-up sequence", value=True)
-simulate_metrics = st.sidebar.checkbox("Simulate dashboard metrics", value=True)
+    try:
+        response = requests.post(LMSTUDIO_URL, json=payload, timeout=20)
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        return f"[LLM ERROR] {e}\n\nOriginal message: {text}"
 
-# -----------------------------
-# Dashboard Snapshot (Demo)
-# -----------------------------
-if simulate_metrics:
-    st.subheader("📊 Dashboard Snapshot (Demo Data)")
+# ---------------------------------------------------------
+# STREAMLIT UI SECTION
+# ---------------------------------------------------------
+st.set_page_config(page_title="AI Follow-Up Agent Demo (LM Studio)", page_icon="🤖", layout="wide")
+
+st.markdown("""
+<h1 style='text-align:center; color:#0ea5e9;'>🤖 AI Follow-Up Agent Demo — LM Studio Powered</h1>
+<p style='text-align:center; color:#334155;'>This demo uses your LOCAL LM Studio LLM for polishing follow-up messages.</p>
+<hr>
+""", unsafe_allow_html=True)
+
+# Sidebar ----------------------------------------------------
+st.sidebar.header("Demo Controls")
+demo_tone = st.sidebar.selectbox("Tone:", ["Professional", "Casual", "Urgent", "Persuasive"])
+show_sequence = st.sidebar.checkbox("Show follow-up sequence", True)
+sim_metrics = st.sidebar.checkbox("Show dashboard metrics", True)
+
+# Dashboard (fake metrics) -----------------------------------
+if sim_metrics:
     cols = st.columns(4)
-    cols[0].metric("Revived Leads", random.randint(12, 55))
-    cols[1].metric("Follow-Ups Sent", random.randint(70, 180))
-    cols[2].metric("Conversion Boost", f"{random.randint(20,45)}%")
-    cols[3].metric("Hours Saved", random.randint(24, 120))
+    cols[0].metric("Revived Leads", random.randint(20,60))
+    cols[1].metric("Follow-Ups Sent", random.randint(50,180))
+    cols[2].metric("Conversion Boost", f"{random.randint(15,40)}%")
+    cols[3].metric("Hours Saved", random.randint(20,120))
     st.markdown("<hr>", unsafe_allow_html=True)
 
-# -----------------------------
-# Chat + Controls
-# -----------------------------
-st.subheader("💬 WhatsApp-Style Chat Simulator")
-
+# Chat State --------------------------------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "lead_logs" not in st.session_state:
     st.session_state.lead_logs = []
 
+# Industry Templates -----------------------------------------
 industry = st.selectbox(
-    "Select Industry Context:",
+    "Industry Context",
     [
-        "Real Estate",
-        "Clinics / Dental",
-        "Automobile Sales",
-        "Education / Coaching",
-        "Finance / Loans",
-        "Immigration",
-        "Generic / Other",
-    ],
+        "Real Estate", "Clinics / Dental", "Automobile Sales",
+        "Education / Coaching", "Finance / Loans",
+        "Immigration", "Generic / Other"
+    ]
 )
 
-# Industry templates
 TEMPLATES = {
     "Real Estate": "Hi {{name}}, following up on the property you checked earlier. Want updated pricing or available units?",
     "Clinics / Dental": "Hi {{name}}, checking in about your consultation. I can send doctor slots or treatment costs.",
     "Automobile Sales": "Hi {{name}}, we have updated prices & variants for the car you enquired about. Want details?",
-    "Education / Coaching": "Hi {{name}}, I can share course fees, syllabus, and new batch timings.",
-    "Finance / Loans": "Hi {{name}}, I can help you with your loan enquiry. I can pre-check eligibility and share updated interest rates.",
-    "Immigration": "Hi {{name}}, following up on your immigration consultation request. I can share eligibility, process steps, and booking link.",
+    "Education / Coaching": "Hi {{name}}, I can share course fees, syllabus, and upcoming batch timings.",
+    "Finance / Loans": "Hi {{name}}, I can help check your loan eligibility and share updated interest rates.",
+    "Immigration": "Hi {{name}}, following up on your immigration consultation request.",
     "Generic / Other": "Hi {{name}}, just checking in — did you get the info you needed?",
 }
 
 lead_name = st.text_input("Lead Name", "John")
 lead_phone = st.text_input("Lead Phone (demo)", "91800XXXXX")
-lead_msg = st.text_area("Lead's Last Message (simulate)", "Hi, I'm busy but I want the info soon.")
+lead_msg = st.text_area("Lead's Last Message (simulate)", "Hi, I'm busy but want info.")
 
-col1, col2 = st.columns([3, 1])
-with col2:
-    if st.button("Generate AI Follow-Up"):
-        # Base template
-        base = TEMPLATES.get(industry, TEMPLATES["Generic / Other"]).replace("{{name}}", lead_name)
-        # Simulated LLM polish
-        def llm_polish(text, context, tone="Professional"):
-            # Replace this stub with a real LLM API call as needed.
-            tone_suffix = {
-                "Professional": "Regards, Team",
-                "Casual": "Cheers!",
-                "Urgent": "Limited slots — act now!",
-                "Persuasive": "Many clients decide in 24 hours — don't miss out!",
-            }.get(tone, "Regards, Team")
-            polished = f"{text}\n\n{tone_suffix}\n\n(Polished with context: {context})"
-            return polished
+# ------------------------------
+# Buttons
+# ------------------------------
+generate = st.button("Generate AI Follow-Up (LM Studio)")
+reply = st.button("Simulate Lead Reply")
 
-        context = f"Simulated context: previous inquiry about price; no reply in 3 days. Industry: {industry}"
-        polished = llm_polish(base, context, tone=demo_tone)
-        st.session_state.chat_history.append(("agent", polished))
-        # Log CRM event
-        log = {
-            "lead": lead_name,
-            "phone": lead_phone,
-            "industry": industry,
-            "generated_at": datetime.now().isoformat(),
-            "message": polished,
-        }
-        st.session_state.lead_logs.append(log)
+# Lead Reply
+if reply:
+    st.session_state.chat_history.append(("lead", lead_msg))
 
-with col1:
-    if st.button("Simulate Lead Reply"):
-        st.session_state.chat_history.append(("lead", lead_msg))
+# Generate Follow-up ----------------------------------------
+if generate:
+    base_template = TEMPLATES[industry].replace("{{name}}", lead_name)
 
-# Display chat window
-st.markdown("### 🟩 Chat Window")
-chat_container = st.container()
-with chat_container:
-    for sender, msg in st.session_state.chat_history:
-        if sender == "lead":
-            st.markdown(f"<div class='lead-bubble'>{msg}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div class='agent-bubble'>{msg}</div>", unsafe_allow_html=True)
+    context = f"Previous inquiry 3 days ago. Industry: {industry}. Tone: {demo_tone}."
 
-# -----------------------------
-# Multi-Step Follow-Up Sequence
-# -----------------------------
+    polished = llm_polish(base_template, context, demo_tone)
+
+    st.session_state.chat_history.append(("agent", polished))
+
+    st.session_state.lead_logs.append({
+        "lead": lead_name,
+        "phone": lead_phone,
+        "industry": industry,
+        "message": polished,
+        "timestamp": datetime.now().isoformat()
+    })
+
+# -------------------------------------------------------------
+# WhatsApp-style chat window
+# -------------------------------------------------------------
+st.subheader("🟩 Chat Window")
+for sender, msg in st.session_state.chat_history:
+    if sender == "lead":
+        st.markdown(f"<div style='background:#e5e7eb;padding:10px;border-radius:10px;margin:6px;width:70%;'>{msg}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div style='background:#dcf8c6;padding:10px;border-radius:10px;margin:6px;margin-left:30%;width:70%;text-align:right;'>{msg}</div>", unsafe_allow_html=True)
+
+# -------------------------------------------------------------
+# Follow-up sequence
+# -------------------------------------------------------------
 st.markdown("<hr>", unsafe_allow_html=True)
-st.subheader("🔁 Multi-Step Follow-Up Flow")
+st.subheader("🔁 Multi-Step Follow-Up Sequence")
 
-default_steps = [
-    "Day 1: Soft nudge — ask if they need more info.",
-    "Day 2: Value add — send useful asset (pricing PDF or checklist).",
-    "Day 3: Urgency angle — limited slots/units available.",
-    "Day 5: Final ping — last chance / callback offer.",
+steps = [
+    "Day 1 — Soft nudge",
+    "Day 2 — Value add with helpful resource",
+    "Day 3 — Urgency angle",
+    "Day 5 — Final follow-up",
 ]
+
 if show_sequence:
-    for s in default_steps:
+    for s in steps:
         st.write(f"- {s}")
 
-# Allow quick customization
-if st.checkbox("Customize sequence (demo)"):
-    seq_text = st.text_area("Edit sequence (one per line):", "\n".join(default_steps), height=120)
-    seq_lines = [x.strip() for x in seq_text.splitlines() if x.strip()]
-    st.write("Resulting sequence:")
-    for s in seq_lines:
-        st.write(f"- {s}")
-
-# -----------------------------
-# CRM Log / Lead History Simulation
-# -----------------------------
+# -------------------------------------------------------------
+# CRM simulation log
+# -------------------------------------------------------------
 st.markdown("<hr>", unsafe_allow_html=True)
 st.subheader("🗂️ CRM Log (Simulated)")
 
 if st.session_state.lead_logs:
-    # Show last 6 logs
-    for entry in reversed(st.session_state.lead_logs[-6:]):
-        st.markdown(
-            f"**{entry['generated_at']}** — **{entry['lead']} ({entry['industry']})**\n\n"
-            f"{entry['message']}\n\n---"
-        )
+    st.json(st.session_state.lead_logs[-5:])
 else:
-    st.info("No CRM logs yet. Generate a follow-up to create logs.")
+    st.info("No CRM logs yet.")
 
-# JSON download
-if st.session_state.lead_logs:
-    if st.download_button("Download CRM Logs (JSON)", json.dumps(st.session_state.lead_logs, indent=2), file_name="crm_logs.json"):
-        st.success("Downloaded CRM logs.")
-
-# -----------------------------
-# Demo Controls & Notes
-# -----------------------------
-st.markdown("<hr>", unsafe_allow_html=True)
-st.subheader("⚙️ Demo Notes & Replaceable LLM Stub")
-st.write(
-    """
-    This demo uses a simple `llm_polish` stub. To make responses come from a real model:
-    - Replace `llm_polish` with a call to your LLM/Inference endpoint (vLLM/TGI/Groq/OpenAI).
-    - For privacy and cost control: use templates + LLM polish only for final touch.
-    """
-)
-
-st.markdown("<hr>", unsafe_allow_html=True)
-st.caption("Demo built for sales & client walkthroughs. Production backend (FastAPI + connectors + LangGraph) required to send real messages or integrate with client CRMs.")
+# -------------------------------------------------------------
+st.caption("Demo uses LM Studio local LLM for polishing follow-up messages.")
