@@ -11,7 +11,7 @@ import json
 # ---------------------------------------------------------
 # CONFIG — LM Studio endpoint
 # ---------------------------------------------------------
-LMSTUDIO_URL = "https://guidelines-die-racial-gui.trycloudflare.com/v1/chat/completions"
+LMSTUDIO_URL = "https://cir-found-euros-hence.trycloudflare.com/v1/chat/completions"
   # Default LM Studio server
 MODEL_NAME = "gemma-2-2b-it"  # LM Studio automatically assigns internal model names, optional
 
